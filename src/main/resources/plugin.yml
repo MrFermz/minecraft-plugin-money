@@ -1,10 +1,10 @@
-name: MoneyPlugin
+name: Money
 version: '${version}'
 main: com.mrfermz.mcplugins.money.MoneyPlugin
 api-version: '1.21'
 author: Mr.Fermz
 description: Economy/currency for the ecosystem — balances, pay and admin controls.
-depend: [MinecraftPluginCore]
+depend: [Core]
 
 commands:
   money:

@@ -2,7 +2,7 @@
 
 Economy/currency plugin สำหรับ ecosystem นี้ — เป็น "สกุลเงิน" กลางให้ระบบหลักที่จะเพิ่มมาทีหลังเรียกใช้ บน Paper 26.2
 
-ส่วนหนึ่งของ multi-module ecosystem ที่อธิบายไว้ใน [CLAUDE.md ของ root repo](../CLAUDE.md) — depend on `minecraft-plugin-core` แบบ `compileOnly` + `depend: [MinecraftPluginCore]` แล้ว register `EconomyService` เข้า Bukkit `ServicesManager`
+ส่วนหนึ่งของ multi-module ecosystem ที่อธิบายไว้ใน [CLAUDE.md ของ root repo](../CLAUDE.md) — depend on `minecraft-plugin-core` แบบ `compileOnly` + `depend: [Core]` แล้ว register `EconomyService` เข้า Bukkit `ServicesManager` (ชื่อ plugin ใน `/pl` = `Money`)
 
 ## Commands
 
@@ -32,7 +32,7 @@ Economy/currency plugin สำหรับ ecosystem นี้ — เป็น 
 
 ## Config (`plugins/antitle/money.yml`)
 
-> config ของ plugin เป็นไฟล์แบนในโฟลเดอร์รวมของ ecosystem ที่ `plugins/antitle/money.yml` (ไม่ใช่ `plugins/MoneyPlugin/`) — resolve ผ่าน `EcosystemData` ของ core ดู [CLAUDE.md → Config directory บน server](../CLAUDE.md#config-directory-บน-server)
+> config ของ plugin เป็นไฟล์แบนในโฟลเดอร์รวมของ ecosystem ที่ `plugins/antitle/money.yml` (ไม่ใช่ `plugins/Money/`) — resolve ผ่าน `EcosystemData` ของ core ดู [CLAUDE.md → Config directory บน server](../CLAUDE.md#config-directory-บน-server)
 
 
 ```yaml
