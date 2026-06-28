@@ -77,7 +77,7 @@ if (eco.has(uuid, price)) {
 บันทึก **ทุกการเปลี่ยนยอดเงิน** ลงตาราง **`money_transactions`** ใน central DB เพื่อให้ตรวจสอบได้ว่าใครโอน/ทำธุรกรรมอะไร — เปิด/ปิดด้วย `transaction-log.enabled` (default `true`; ปิดแล้วใช้ `TransactionLog.NOOP`)
 
 - **บันทึกที่ชั้น `MoneyEconomyService`** ไม่ใช่ที่ command — `deposit/withdraw/setBalance/transfer` ทุกตัวที่สำเร็จจะ record 1 แถว ดังนั้น **plugin อื่นที่เรียกผ่าน `EconomyService` ก็ถูกบันทึกด้วย** (ไม่หลุด); `transfer` บันทึกแถวเดียวต่อการโอน (ไม่แตกเป็น debit+credit)
-- แต่ละแถวมี `id` (PK gen ด้วย UUID) + เก็บ: `ts`, `type` (`PAY/TRANSFER/GIVE/TAKE/SET/RESET/DEPOSIT/WITHDRAW`), `actor` (คนสั่ง — null = console/system), `from_uuid`/`to_uuid`, `amount`, `from_balance`/`to_balance`, `reason` — player ref **เก็บเป็น UUID ล้วน** (resolve ชื่อตอนแสดงผล ไม่เก็บชื่อค้างให้เพี้ยน)
+- แต่ละแถวมี `id` (PK gen ด้วย UUID) + เก็บ: `created_at` (**date จริง** — `TIMESTAMP`/`DATETIME` ไม่ใช่ epoch number), `type` (`PAY/TRANSFER/GIVE/TAKE/SET/RESET/DEPOSIT/WITHDRAW`), `created_by` (คนสั่ง — null = console/system), `from_uuid`/`to_uuid`, `amount`, `from_balance`/`to_balance`, `reason` — player ref **เก็บเป็น UUID ล้วน** (resolve ชื่อตอนแสดงผล ไม่เก็บชื่อค้างให้เพี้ยน)
 - เขียนแบบ buffered เหมือน balances: `record()` ลง queue + async flush (debounced) + periodic flush ทุก 1 นาที + flush ตอน disable — append-only ไม่มี upsert; JDBC ไม่อยู่บน main thread
 - attribution: command layer ส่ง `TxMeta` (type + actor) ให้ service ส่วน `EconomyService` interface ปกติ (ที่ plugin อื่นเรียก) จะ log เป็น system (actor = null, type `DEPOSIT/WITHDRAW/TRANSFER`)
 - ดูในเกม: `/money log [player] [limit]` (perm `money.admin.log`) — query แบบ async แล้ว resolve ชื่อกลับมาแสดง; ข้อมูลดิบอยู่ใน DB ให้ webconfig อ่านต่อได้

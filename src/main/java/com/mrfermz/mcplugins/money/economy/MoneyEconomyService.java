@@ -9,6 +9,7 @@ import com.mrfermz.mcplugins.money.transaction.TransactionType;
 import com.mrfermz.mcplugins.money.transaction.TxMeta;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Collections;
@@ -215,7 +216,7 @@ public final class MoneyEconomyService implements EconomyService {
         return result[0];
     }
 
-    private static long now() {
-        return System.currentTimeMillis();
+    private static Instant now() {
+        return Instant.now();
     }
 }

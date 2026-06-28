@@ -7,7 +7,6 @@ import com.mrfermz.mcplugins.money.transaction.TransactionLog;
 import com.mrfermz.mcplugins.money.transaction.TransactionType;
 import com.mrfermz.mcplugins.money.transaction.TxMeta;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -300,7 +299,7 @@ public final class MoneyCommand implements TabExecutor {
 
     /** Formats one transaction row for chat, resolving UUIDs to names. */
     private String render(CommandSender sender, Transaction tx) {
-        String when = ChatColor.DARK_GRAY + TIME.format(Instant.ofEpochMilli(tx.timestamp()));
+        String when = ChatColor.DARK_GRAY + TIME.format(tx.createdAt());
         String amount = ChatColor.GREEN + economy.format(tx.amount());
         String from = name(sender, tx.from());
         String to = name(sender, tx.to());
@@ -322,10 +321,10 @@ public final class MoneyCommand implements TabExecutor {
     }
 
     private String byActor(CommandSender sender, Transaction tx) {
-        if (tx.actor() == null) {
+        if (tx.createdBy() == null) {
             return ChatColor.DARK_GRAY + " (by console)";
         }
-        return ChatColor.DARK_GRAY + " (by " + name(sender, tx.actor()) + ")";
+        return ChatColor.DARK_GRAY + " (by " + name(sender, tx.createdBy()) + ")";
     }
 
     private String name(CommandSender sender, UUID id) {

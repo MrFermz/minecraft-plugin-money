@@ -8,6 +8,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -31,7 +33,7 @@ import org.bukkit.plugin.Plugin;
 public final class SqlTransactionLog implements TransactionLog {
 
     private static final String COLUMNS =
-            "ts, type, actor, from_uuid, to_uuid, amount, from_balance, to_balance, reason";
+            "created_at, type, created_by, from_uuid, to_uuid, amount, from_balance, to_balance, reason";
 
     private final Plugin plugin;
     private final DataSource dataSource;
@@ -55,11 +57,14 @@ public final class SqlTransactionLog implements TransactionLog {
     private void createTable() {
         // Generated UUID surrogate id as PK (ecosystem convention) — fixed-width
         // so VARCHAR(36) works on every engine; no per-dialect auto-increment.
+        // created_at is a real date/time column (DATETIME on MySQL, TIMESTAMP
+        // elsewhere) rather than an epoch number.
+        String tsType = dialect.isMySqlFamily() ? "DATETIME" : "TIMESTAMP";
         String ddl = "CREATE TABLE IF NOT EXISTS " + table + " ("
                 + "id VARCHAR(36) PRIMARY KEY, "
-                + "ts BIGINT NOT NULL, "
+                + "created_at " + tsType + " NOT NULL, "
                 + "type VARCHAR(16) NOT NULL, "
-                + "actor VARCHAR(36), "
+                + "created_by VARCHAR(36), "
                 + "from_uuid VARCHAR(36), "
                 + "to_uuid VARCHAR(36), "
                 + "amount VARCHAR(64) NOT NULL, "
@@ -74,10 +79,10 @@ public final class SqlTransactionLog implements TransactionLog {
             return;
         }
         // Indexes speed up /money log filtering/ordering; harmless if they exist.
-        safeIndex("idx_" + table + "_ts", "ts");
+        safeIndex("idx_" + table + "_created_at", "created_at");
         safeIndex("idx_" + table + "_from", "from_uuid");
         safeIndex("idx_" + table + "_to", "to_uuid");
-        safeIndex("idx_" + table + "_actor", "actor");
+        safeIndex("idx_" + table + "_created_by", "created_by");
     }
 
     /**
@@ -127,9 +132,9 @@ public final class SqlTransactionLog implements TransactionLog {
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 for (Transaction t : batch) {
                     ps.setString(1, UUID.randomUUID().toString());
-                    ps.setLong(2, t.timestamp());
+                    ps.setTimestamp(2, Timestamp.from(t.createdAt()));
                     ps.setString(3, t.type().name());
-                    ps.setString(4, str(t.actor()));
+                    ps.setString(4, str(t.createdBy()));
                     ps.setString(5, str(t.from()));
                     ps.setString(6, str(t.to()));
                     ps.setString(7, t.amount().toPlainString());
@@ -155,9 +160,8 @@ public final class SqlTransactionLog implements TransactionLog {
 
     @Override
     public List<Transaction> recent(UUID player, int limit) {
-        String where = player != null ? " WHERE actor = ? OR from_uuid = ? OR to_uuid = ?" : "";
-        // id is a random UUID, so it's no use as a tiebreaker; ts (ms) orders fine.
-        String sql = "SELECT " + COLUMNS + " FROM " + table + where + " ORDER BY ts DESC LIMIT ?";
+        String where = player != null ? " WHERE created_by = ? OR from_uuid = ? OR to_uuid = ?" : "";
+        String sql = "SELECT " + COLUMNS + " FROM " + table + where + " ORDER BY created_at DESC LIMIT ?";
         List<Transaction> out = new ArrayList<>();
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -187,10 +191,11 @@ public final class SqlTransactionLog implements TransactionLog {
         } catch (IllegalArgumentException unknown) {
             type = TransactionType.TRANSFER; // forward-compat: unknown stored type
         }
+        Timestamp createdAt = rs.getTimestamp("created_at");
         return new Transaction(
-                rs.getLong("ts"),
+                createdAt != null ? createdAt.toInstant() : Instant.now(),
                 type,
-                uuid(rs.getString("actor")),
+                uuid(rs.getString("created_by")),
                 uuid(rs.getString("from_uuid")),
                 uuid(rs.getString("to_uuid")),
                 new BigDecimal(rs.getString("amount")),

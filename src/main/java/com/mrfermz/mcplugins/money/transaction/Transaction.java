@@ -1,6 +1,7 @@
 package com.mrfermz.mcplugins.money.transaction;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -17,12 +18,12 @@ import java.util.UUID;
  *       pure credit like {@code GIVE}/{@code SET}).</li>
  *   <li>{@link #to}/{@link #toBalance} — the credited account (null for a pure
  *       debit like {@code TAKE}).</li>
- *   <li>{@link #actor} — who initiated it; null means console/system.</li>
+ *   <li>{@link #createdBy} — who initiated it; null means console/system.</li>
  * </ul>
  *
- * @param timestamp  epoch millis when the change was applied
+ * @param createdAt  when the change was applied (stored as a real date column)
  * @param type       the intent behind the change
- * @param actor      who triggered it (command sender); null = console/system
+ * @param createdBy  who triggered it (command sender); null = console/system
  * @param from       the debited account, or null
  * @param to         the credited account, or null
  * @param amount     the absolute amount moved (for SET/RESET, the new value)
@@ -31,9 +32,9 @@ import java.util.UUID;
  * @param reason     optional free-text context, or null
  */
 public record Transaction(
-        long timestamp,
+        Instant createdAt,
         TransactionType type,
-        UUID actor,
+        UUID createdBy,
         UUID from,
         UUID to,
         BigDecimal amount,
