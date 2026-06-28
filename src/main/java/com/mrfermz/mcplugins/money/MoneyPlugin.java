@@ -76,7 +76,7 @@ public final class MoneyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new AccountListener(this, economy, storage), this);
 
-        // Expose a per-player setting on the shared registry so the Settings menu
+        // Expose a per-player setting on the shared registry so the in-game menu
         // can offer it; reads happen live in /money top (CLAUDE.md → plugins talk
         // through core). Both are optional — money still works without them.
         CoreApi.settings(getServer()).ifPresent(registry -> registry.register(

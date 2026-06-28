@@ -171,7 +171,7 @@ public final class MoneyCommand implements TabExecutor {
         if (!sender.hasPermission("money.baltop")) {
             return denied(sender, "view the balance top");
         }
-        // Players who turned off "show me on /money top" (in /setting) are filtered
+        // Players who turned off "show me on /money top" (in /menu) are filtered
         // out before ranking, so opting out actually removes them from the board.
         List<Map.Entry<UUID, BigDecimal>> top = economy.snapshot().entrySet().stream()
                 .filter(e -> prefs == null || prefs.getBoolean(e.getKey(), TOP_VISIBLE_KEY, true))

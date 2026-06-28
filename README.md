@@ -23,7 +23,7 @@ Economy/currency plugin สำหรับ ecosystem นี้ — เป็น 
 
 ### Per-player setting: ขึ้น `/money top` ไหม
 
-money register `SettingDefinition` (key `money.top.visible`, default เปิด) เข้า `SettingsRegistry` ของ core ตอน `onEnable` — ผู้เล่นปิดได้ผ่าน `/setting` ถ้าปิด `/money top` จะกรองชื่อออกก่อนจัดอันดับ (อ่านค่าผ่าน `PlayerPreferenceService` แบบ realtime, ได้ทั้งคน online/offline เพราะ core cache ไว้) — เป็น optional: ถ้า core ไม่ register service ไว้ money ถือว่าทุกคนโชว์
+money register `SettingDefinition` (key `money.top.visible`, default เปิด) เข้า `SettingsRegistry` ของ core ตอน `onEnable` — ผู้เล่นปิดได้ผ่าน `/menu` ถ้าปิด `/money top` จะกรองชื่อออกก่อนจัดอันดับ (อ่านค่าผ่าน `PlayerPreferenceService` แบบ realtime, ได้ทั้งคน online/offline เพราะ core cache ไว้) — เป็น optional: ถ้า core ไม่ register service ไว้ money ถือว่าทุกคนโชว์
 
 ### Permissions (default)
 
