@@ -52,12 +52,15 @@ public final class SqlMoneyStorage implements MoneyStorage {
     }
 
     private void createTable() {
-        // TEXT can't be a PRIMARY KEY in MySQL/MariaDB without a length, so use
-        // bounded VARCHARs there; SQLite/Postgres are happy with TEXT.
-        String uuidType = dialect.isMySqlFamily() ? "VARCHAR(36)" : "TEXT";
+        // Every table has a generated UUID surrogate id as its PK (ecosystem
+        // convention); the player uuid is a UNIQUE natural key used for upserts.
+        // UUIDs are fixed-width so VARCHAR(36) works on every engine; balance is
+        // text for exact BigDecimal precision.
         String balanceType = dialect.isMySqlFamily() ? "VARCHAR(64)" : "TEXT";
-        String ddl = "CREATE TABLE IF NOT EXISTS " + table
-                + " (uuid " + uuidType + " PRIMARY KEY, balance " + balanceType + " NOT NULL)";
+        String ddl = "CREATE TABLE IF NOT EXISTS " + table + " ("
+                + "id VARCHAR(36) PRIMARY KEY, "
+                + "uuid VARCHAR(36) NOT NULL UNIQUE, "
+                + "balance " + balanceType + " NOT NULL)";
         try (Connection conn = dataSource.getConnection();
              Statement st = conn.createStatement()) {
             st.execute(ddl);
@@ -88,12 +91,13 @@ public final class SqlMoneyStorage implements MoneyStorage {
     @Override
     public void create(UUID player, BigDecimal balance) {
         String sql = dialect.isMySqlFamily()
-                ? "INSERT IGNORE INTO " + table + " (uuid, balance) VALUES (?, ?)"
-                : "INSERT INTO " + table + " (uuid, balance) VALUES (?, ?) ON CONFLICT (uuid) DO NOTHING";
+                ? "INSERT IGNORE INTO " + table + " (id, uuid, balance) VALUES (?, ?, ?)"
+                : "INSERT INTO " + table + " (id, uuid, balance) VALUES (?, ?, ?) ON CONFLICT (uuid) DO NOTHING";
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, player.toString());
-            ps.setString(2, balance.toPlainString());
+            ps.setString(1, UUID.randomUUID().toString());
+            ps.setString(2, player.toString());
+            ps.setString(3, balance.toPlainString());
             ps.executeUpdate();
         } catch (SQLException ex) {
             log.error("Failed to create account row for " + player + " in " + table, ex);
@@ -122,17 +126,20 @@ public final class SqlMoneyStorage implements MoneyStorage {
         // puts that arrive mid-flush aren't lost.
         Map<UUID, BigDecimal> batch = new HashMap<>(pending);
         String sql = dialect.isMySqlFamily()
-                ? "INSERT INTO " + table + " (uuid, balance) VALUES (?, ?) "
+                ? "INSERT INTO " + table + " (id, uuid, balance) VALUES (?, ?, ?) "
                         + "ON DUPLICATE KEY UPDATE balance = VALUES(balance)"
-                : "INSERT INTO " + table + " (uuid, balance) VALUES (?, ?) "
+                : "INSERT INTO " + table + " (id, uuid, balance) VALUES (?, ?, ?) "
                         + "ON CONFLICT(uuid) DO UPDATE SET balance = excluded.balance";
         try (Connection conn = dataSource.getConnection()) {
             boolean autoCommit = conn.getAutoCommit();
             conn.setAutoCommit(false);
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 for (Map.Entry<UUID, BigDecimal> e : batch.entrySet()) {
-                    ps.setString(1, e.getKey().toString());
-                    ps.setString(2, e.getValue().toPlainString());
+                    // New row id is only used on insert; on uuid conflict the
+                    // existing row's id is kept.
+                    ps.setString(1, UUID.randomUUID().toString());
+                    ps.setString(2, e.getKey().toString());
+                    ps.setString(3, e.getValue().toPlainString());
                     ps.addBatch();
                 }
                 ps.executeBatch();

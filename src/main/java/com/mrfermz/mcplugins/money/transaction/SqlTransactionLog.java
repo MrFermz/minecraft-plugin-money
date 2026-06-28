@@ -53,14 +53,10 @@ public final class SqlTransactionLog implements TransactionLog {
     }
 
     private void createTable() {
-        // Auto-increment PK syntax differs per engine.
-        String idCol = switch (dialect) {
-            case SQLITE -> "id INTEGER PRIMARY KEY AUTOINCREMENT";
-            case POSTGRESQL -> "id BIGSERIAL PRIMARY KEY";
-            case MYSQL, MARIADB -> "id BIGINT AUTO_INCREMENT PRIMARY KEY";
-        };
+        // Generated UUID surrogate id as PK (ecosystem convention) — fixed-width
+        // so VARCHAR(36) works on every engine; no per-dialect auto-increment.
         String ddl = "CREATE TABLE IF NOT EXISTS " + table + " ("
-                + idCol + ", "
+                + "id VARCHAR(36) PRIMARY KEY, "
                 + "ts BIGINT NOT NULL, "
                 + "type VARCHAR(16) NOT NULL, "
                 + "actor VARCHAR(36), "
@@ -124,21 +120,22 @@ public final class SqlTransactionLog implements TransactionLog {
         for (Transaction t; (t = pending.poll()) != null; ) {
             batch.add(t);
         }
-        String sql = "INSERT INTO " + table + " (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO " + table + " (id, " + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = dataSource.getConnection()) {
             boolean autoCommit = conn.getAutoCommit();
             conn.setAutoCommit(false);
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 for (Transaction t : batch) {
-                    ps.setLong(1, t.timestamp());
-                    ps.setString(2, t.type().name());
-                    ps.setString(3, str(t.actor()));
-                    ps.setString(4, str(t.from()));
-                    ps.setString(5, str(t.to()));
-                    ps.setString(6, t.amount().toPlainString());
-                    ps.setString(7, plain(t.fromBalance()));
-                    ps.setString(8, plain(t.toBalance()));
-                    ps.setString(9, t.reason());
+                    ps.setString(1, UUID.randomUUID().toString());
+                    ps.setLong(2, t.timestamp());
+                    ps.setString(3, t.type().name());
+                    ps.setString(4, str(t.actor()));
+                    ps.setString(5, str(t.from()));
+                    ps.setString(6, str(t.to()));
+                    ps.setString(7, t.amount().toPlainString());
+                    ps.setString(8, plain(t.fromBalance()));
+                    ps.setString(9, plain(t.toBalance()));
+                    ps.setString(10, t.reason());
                     ps.addBatch();
                 }
                 ps.executeBatch();
@@ -159,7 +156,8 @@ public final class SqlTransactionLog implements TransactionLog {
     @Override
     public List<Transaction> recent(UUID player, int limit) {
         String where = player != null ? " WHERE actor = ? OR from_uuid = ? OR to_uuid = ?" : "";
-        String sql = "SELECT " + COLUMNS + " FROM " + table + where + " ORDER BY ts DESC, id DESC LIMIT ?";
+        // id is a random UUID, so it's no use as a tiebreaker; ts (ms) orders fine.
+        String sql = "SELECT " + COLUMNS + " FROM " + table + where + " ORDER BY ts DESC LIMIT ?";
         List<Transaction> out = new ArrayList<>();
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
