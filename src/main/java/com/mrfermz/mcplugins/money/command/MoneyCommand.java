@@ -2,7 +2,14 @@ package com.mrfermz.mcplugins.money.command;
 
 import com.mrfermz.mcplugins.core.api.EconomyResponse;
 import com.mrfermz.mcplugins.money.economy.MoneyEconomyService;
+import com.mrfermz.mcplugins.money.transaction.Transaction;
+import com.mrfermz.mcplugins.money.transaction.TransactionLog;
+import com.mrfermz.mcplugins.money.transaction.TransactionType;
+import com.mrfermz.mcplugins.money.transaction.TxMeta;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -14,6 +21,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,13 +40,22 @@ import org.jetbrains.annotations.Nullable;
 public final class MoneyCommand implements TabExecutor {
 
     private static final int TOP_LIMIT = 10;
-    private static final List<String> ADMIN_SUBS = List.of("give", "take", "set", "reset");
+    private static final int LOG_LIMIT = 10;
+    private static final int LOG_MAX = 50;
+    private static final List<String> ADMIN_SUBS = List.of("give", "take", "set", "reset", "log");
+    private static final DateTimeFormatter TIME =
+            DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
+    private final Plugin plugin;
     private final MoneyEconomyService economy;
+    private final TransactionLog txLog;
     private final BigDecimal startingBalance;
 
-    public MoneyCommand(MoneyEconomyService economy, BigDecimal startingBalance) {
+    public MoneyCommand(Plugin plugin, MoneyEconomyService economy, TransactionLog txLog,
+                        BigDecimal startingBalance) {
+        this.plugin = plugin;
         this.economy = economy;
+        this.txLog = txLog;
         this.startingBalance = startingBalance;
     }
 
@@ -54,6 +71,7 @@ public final class MoneyCommand implements TabExecutor {
             case "pay" -> pay(sender, label, args);
             case "balance", "bal" -> balance(sender, args);
             case "top", "baltop" -> top(sender);
+            case "log", "logs", "history" -> log(sender, args);
             case "give", "take", "set", "reset" -> admin(sender, sub, label, args);
             default -> {
                 sender.sendMessage(ChatColor.RED + "Unknown subcommand '" + args[0] + "'. Try /" + label + " help");
@@ -123,7 +141,8 @@ public final class MoneyCommand implements TabExecutor {
             return true;
         }
 
-        EconomyResponse response = economy.transfer(payer.getUniqueId(), target.getUniqueId(), amount);
+        EconomyResponse response = economy.transfer(payer.getUniqueId(), target.getUniqueId(), amount,
+                TxMeta.by(TransactionType.PAY, payer.getUniqueId()));
         if (!response.success()) {
             if (response.error() == EconomyResponse.Error.INSUFFICIENT_FUNDS) {
                 sender.sendMessage(ChatColor.RED + "You can't afford that. Balance: "
@@ -184,8 +203,11 @@ public final class MoneyCommand implements TabExecutor {
             return true;
         }
 
+        UUID actor = sender instanceof Player p ? p.getUniqueId() : null;
+
         if (sub.equals("reset")) {
-            EconomyResponse r = economy.setBalance(target.getUniqueId(), startingBalance);
+            EconomyResponse r = economy.setBalance(target.getUniqueId(), startingBalance,
+                    TxMeta.by(TransactionType.RESET, actor));
             sender.sendMessage(ChatColor.GREEN + "Reset " + target.getName() + " to "
                     + economy.format(r.newBalance()));
             return true;
@@ -205,9 +227,9 @@ public final class MoneyCommand implements TabExecutor {
         }
 
         EconomyResponse response = switch (sub) {
-            case "give" -> economy.deposit(target.getUniqueId(), amount);
-            case "take" -> economy.withdraw(target.getUniqueId(), amount);
-            case "set" -> economy.setBalance(target.getUniqueId(), amount);
+            case "give" -> economy.deposit(target.getUniqueId(), amount, TxMeta.by(TransactionType.GIVE, actor));
+            case "take" -> economy.withdraw(target.getUniqueId(), amount, TxMeta.by(TransactionType.TAKE, actor));
+            case "set" -> economy.setBalance(target.getUniqueId(), amount, TxMeta.by(TransactionType.SET, actor));
             default -> throw new IllegalStateException(sub);
         };
         if (!response.success()) {
@@ -229,6 +251,103 @@ public final class MoneyCommand implements TabExecutor {
         return true;
     }
 
+    // ----- /money log -----
+
+    private boolean log(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("money.admin.log") && !sender.hasPermission("money.admin")) {
+            return denied(sender, "view the transaction log");
+        }
+        // /money log [player] [limit]  — either arg is optional; a bare number is
+        // treated as the limit, otherwise the first extra arg is a player filter.
+        UUID filter = null;
+        String filterName = null;
+        int limit = LOG_LIMIT;
+        int next = 1;
+        if (args.length > next && !isInteger(args[next])) {
+            OfflinePlayer target = sender.getServer().getOfflinePlayerIfCached(args[next]);
+            if (target == null) {
+                sender.sendMessage(ChatColor.RED + "Unknown player: " + args[next]);
+                return true;
+            }
+            filter = target.getUniqueId();
+            filterName = target.getName();
+            next++;
+        }
+        if (args.length > next && isInteger(args[next])) {
+            limit = Math.min(LOG_MAX, Math.max(1, Integer.parseInt(args[next])));
+        }
+
+        UUID queryFilter = filter;
+        int queryLimit = limit;
+        String heading = ChatColor.GOLD + "--- Last " + limit + " transactions"
+                + (filterName != null ? " for " + filterName : "") + " ---";
+        // Hit the DB off the main thread, then resolve names and report back.
+        plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
+            List<Transaction> rows = txLog.recent(queryFilter, queryLimit);
+            List<String> lines = new ArrayList<>();
+            lines.add(heading);
+            if (rows.isEmpty()) {
+                lines.add(ChatColor.GRAY + "No transactions recorded yet.");
+            } else {
+                for (Transaction tx : rows) {
+                    lines.add(render(sender, tx));
+                }
+            }
+            lines.forEach(sender::sendMessage);
+        });
+        return true;
+    }
+
+    /** Formats one transaction row for chat, resolving UUIDs to names. */
+    private String render(CommandSender sender, Transaction tx) {
+        String when = ChatColor.DARK_GRAY + TIME.format(Instant.ofEpochMilli(tx.timestamp()));
+        String amount = ChatColor.GREEN + economy.format(tx.amount());
+        String from = name(sender, tx.from());
+        String to = name(sender, tx.to());
+        String body = switch (tx.type()) {
+            case PAY, TRANSFER -> ChatColor.WHITE + from + ChatColor.GRAY + " → "
+                    + ChatColor.WHITE + to + ChatColor.GRAY + ": " + amount;
+            case GIVE -> ChatColor.GRAY + "gave " + ChatColor.WHITE + to + ChatColor.GRAY + ": " + amount
+                    + byActor(sender, tx);
+            case TAKE -> ChatColor.GRAY + "took from " + ChatColor.WHITE + from + ChatColor.GRAY + ": " + amount
+                    + byActor(sender, tx);
+            case SET -> ChatColor.GRAY + "set " + ChatColor.WHITE + to + ChatColor.GRAY + " = " + amount
+                    + byActor(sender, tx);
+            case RESET -> ChatColor.GRAY + "reset " + ChatColor.WHITE + to + ChatColor.GRAY + " = " + amount
+                    + byActor(sender, tx);
+            case DEPOSIT -> ChatColor.GRAY + "deposit " + ChatColor.WHITE + to + ChatColor.GRAY + ": " + amount;
+            case WITHDRAW -> ChatColor.GRAY + "withdraw " + ChatColor.WHITE + from + ChatColor.GRAY + ": " + amount;
+        };
+        return when + " " + ChatColor.YELLOW + tx.type() + " " + body;
+    }
+
+    private String byActor(CommandSender sender, Transaction tx) {
+        if (tx.actor() == null) {
+            return ChatColor.DARK_GRAY + " (by console)";
+        }
+        return ChatColor.DARK_GRAY + " (by " + name(sender, tx.actor()) + ")";
+    }
+
+    private String name(CommandSender sender, UUID id) {
+        if (id == null) {
+            return "-";
+        }
+        String n = sender.getServer().getOfflinePlayer(id).getName();
+        return n != null ? n : id.toString().substring(0, 8);
+    }
+
+    private static boolean isInteger(String s) {
+        if (s.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // ----- /money help -----
 
     private boolean help(CommandSender sender, String label) {
@@ -242,6 +361,8 @@ public final class MoneyCommand implements TabExecutor {
                     + ChatColor.GRAY + " — admin");
             sender.sendMessage(ChatColor.RED + "/" + label + " reset <player>"
                     + ChatColor.GRAY + " — admin: reset to starting balance");
+            sender.sendMessage(ChatColor.RED + "/" + label + " log [player] [limit]"
+                    + ChatColor.GRAY + " — admin: recent transactions");
         }
         return true;
     }

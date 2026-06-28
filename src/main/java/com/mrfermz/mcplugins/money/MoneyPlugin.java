@@ -11,6 +11,8 @@ import com.mrfermz.mcplugins.money.economy.MoneyEconomyService;
 import com.mrfermz.mcplugins.money.listener.AccountListener;
 import com.mrfermz.mcplugins.money.storage.MoneyStorage;
 import com.mrfermz.mcplugins.money.storage.SqlMoneyStorage;
+import com.mrfermz.mcplugins.money.transaction.SqlTransactionLog;
+import com.mrfermz.mcplugins.money.transaction.TransactionLog;
 import java.math.BigDecimal;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.ServicePriority;
@@ -31,6 +33,7 @@ public final class MoneyPlugin extends JavaPlugin {
 
     private PluginLog log;
     private MoneyStorage storage;
+    private TransactionLog txLog;
     private MoneyEconomyService economy;
 
     @Override
@@ -56,7 +59,15 @@ public final class MoneyPlugin extends JavaPlugin {
             log.warn("storage.type '{}' is not recognised; using the central DB.", storageType);
         }
         this.storage = new SqlMoneyStorage(this, db.dataSource(), db.tablePrefix(MODULE), db.dialect(), log);
-        this.economy = new MoneyEconomyService(storage, settings);
+
+        // Audit trail of every balance change (pay/give/take/set/reset), written
+        // to the central DB table money_transactions. Toggle in money.yml.
+        boolean auditEnabled = config.getBoolean("transaction-log.enabled", true);
+        this.txLog = auditEnabled
+                ? new SqlTransactionLog(this, db.dataSource(), db.tablePrefix(MODULE), db.dialect(), log)
+                : TransactionLog.NOOP;
+
+        this.economy = new MoneyEconomyService(storage, settings, txLog);
 
         // Expose the economy to the rest of the ecosystem.
         getServer().getServicesManager().register(
@@ -70,7 +81,10 @@ public final class MoneyPlugin extends JavaPlugin {
 
         // Buffered writes are flushed off the main thread on a timer.
         getServer().getAsyncScheduler().runAtFixedRate(this,
-                task -> storage.flush(),
+                task -> {
+                    storage.flush();
+                    txLog.flush();
+                },
                 FLUSH_INTERVAL_TICKS * 50, FLUSH_INTERVAL_TICKS * 50,
                 java.util.concurrent.TimeUnit.MILLISECONDS);
 
@@ -85,6 +99,9 @@ public final class MoneyPlugin extends JavaPlugin {
         }
         if (storage != null) {
             storage.close();
+        }
+        if (txLog != null) {
+            txLog.close();
         }
         if (log != null) {
             log.info("Economy disabled, balances flushed.");
@@ -101,7 +118,7 @@ public final class MoneyPlugin extends JavaPlugin {
     }
 
     private void registerCommands(BigDecimal startingBalance) {
-        MoneyCommand handler = new MoneyCommand(economy, startingBalance);
+        MoneyCommand handler = new MoneyCommand(this, economy, txLog, startingBalance);
         var money = getCommand("money");
         money.setExecutor(handler);
         money.setTabCompleter(handler);

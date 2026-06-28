@@ -17,6 +17,7 @@ Economy/currency plugin สำหรับ ecosystem นี้ — เป็น 
 | `/money top` | `money.baltop` | จัดอันดับคนรวยสุด (top 10) |
 | `/money give\|take\|set <player> <amount>` | `money.admin` (+ child `money.admin.give/take/set`) | คำสั่งแอดมิน |
 | `/money reset <player>` | `money.admin.reset` | รีเซ็ตเป็นยอดเริ่มต้น |
+| `/money log [player] [limit]` | `money.admin.log` | ดู transaction log ล่าสุด (default 10, สูงสุด 50) |
 
 `/money` รองรับ tab-complete ของ subcommand / ชื่อผู้เล่น / จำนวน (subcommand แอดมินโชว์เฉพาะคนที่มี perm)
 
@@ -28,7 +29,7 @@ Economy/currency plugin สำหรับ ecosystem นี้ — เป็น 
 | `money.pay` | ทุกคน | โอนเงิน |
 | `money.baltop` | ทุกคน | ดู leaderboard |
 | `money.balance.others` | op | ดูยอดคนอื่น |
-| `money.admin` | op | parent ครอบ `money.admin.give/take/set/reset` |
+| `money.admin` | op | parent ครอบ `money.admin.give/take/set/reset/log` |
 
 ## Config (`plugins/antitle/money.yml`)
 
@@ -44,6 +45,8 @@ currency:
   starting-balance: 100.0
 storage:
   type: sqlite         # เก็บใน central DB ของ core (ตาราง money_*) — money ไม่เปิด pool เอง
+transaction-log:
+  enabled: true        # บันทึกทุกธุรกรรมลงตาราง money_transactions (false = ปิด)
 ```
 
 ## API ให้ plugin อื่นเรียก
@@ -68,6 +71,16 @@ if (eco.has(uuid, price)) {
 - การเปลี่ยนยอดเงินเขียนแบบ buffered: `put()` mark dirty ในเมมโมรี, `flush()` upsert เป็น batch transaction (ทุก 1 นาทีบน async thread + ตอน disable) — JDBC ไม่อยู่บน main thread
 
 > เลือก/ตั้งค่า engine ที่ global config ของ core (`plugins/antitle/config.yml` → `database.*`) ไม่ใช่ที่ money; `storage.type: sqlite` ใน money แค่บอกว่า persist ผ่าน central DB
+
+## Transaction log (audit trail)
+
+บันทึก **ทุกการเปลี่ยนยอดเงิน** ลงตาราง **`money_transactions`** ใน central DB เพื่อให้ตรวจสอบได้ว่าใครโอน/ทำธุรกรรมอะไร — เปิด/ปิดด้วย `transaction-log.enabled` (default `true`; ปิดแล้วใช้ `TransactionLog.NOOP`)
+
+- **บันทึกที่ชั้น `MoneyEconomyService`** ไม่ใช่ที่ command — `deposit/withdraw/setBalance/transfer` ทุกตัวที่สำเร็จจะ record 1 แถว ดังนั้น **plugin อื่นที่เรียกผ่าน `EconomyService` ก็ถูกบันทึกด้วย** (ไม่หลุด); `transfer` บันทึกแถวเดียวต่อการโอน (ไม่แตกเป็น debit+credit)
+- แต่ละแถวเก็บ: `ts`, `type` (`PAY/TRANSFER/GIVE/TAKE/SET/RESET/DEPOSIT/WITHDRAW`), `actor` (คนสั่ง — null = console/system), `from_uuid`/`to_uuid`, `amount`, `from_balance`/`to_balance`, `reason` — **เก็บเป็น UUID ล้วน** (resolve ชื่อตอนแสดงผล ไม่เก็บชื่อค้างให้เพี้ยน)
+- เขียนแบบ buffered เหมือน balances: `record()` ลง queue + async flush (debounced) + periodic flush ทุก 1 นาที + flush ตอน disable — append-only ไม่มี upsert; JDBC ไม่อยู่บน main thread
+- attribution: command layer ส่ง `TxMeta` (type + actor) ให้ service ส่วน `EconomyService` interface ปกติ (ที่ plugin อื่นเรียก) จะ log เป็น system (actor = null, type `DEPOSIT/WITHDRAW/TRANSFER`)
+- ดูในเกม: `/money log [player] [limit]` (perm `money.admin.log`) — query แบบ async แล้ว resolve ชื่อกลับมาแสดง; ข้อมูลดิบอยู่ใน DB ให้ webconfig อ่านต่อได้
 
 ## Build
 

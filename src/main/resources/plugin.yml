@@ -9,7 +9,7 @@ depend: [Core]
 commands:
   money:
     description: Economy command. /money shows your balance; see /money help.
-    usage: /money [help|balance|pay|top|give|take|set|reset] ...
+    usage: /money [help|balance|pay|top|give|take|set|reset|log] ...
     aliases: [eco, economy, bal, balance]
 
 permissions:
@@ -33,6 +33,7 @@ permissions:
       money.admin.take: true
       money.admin.set: true
       money.admin.reset: true
+      money.admin.log: true
   money.admin.give:
     description: Give money to a player.
     default: op
@@ -44,4 +45,7 @@ permissions:
     default: op
   money.admin.reset:
     description: Reset a player's balance to the starting amount.
+    default: op
+  money.admin.log:
+    description: View the transaction audit log.
     default: op

@@ -16,3 +16,9 @@ storage:
   # 'sqlite' = the shared central database owned by minecraft-plugin-core
   #            (tables money_*). Money does not open its own pool.
   type: sqlite
+
+transaction-log:
+  # Records every balance change (pay, give, take, set, reset) to the central
+  # DB table money_transactions, so you can audit who moved money where.
+  # View in-game with /money log [player] [limit]. Set false to disable.
+  enabled: true
