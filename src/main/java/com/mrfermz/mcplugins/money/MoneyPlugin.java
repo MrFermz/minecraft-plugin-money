@@ -46,17 +46,14 @@ public final class MoneyPlugin extends JavaPlugin {
         CurrencySettings settings = readSettings(config);
 
         // Persist via the shared central database owned by core — money never
-        // opens its own pool (CLAUDE.md → Database).
-        String storageType = config.getString("storage.type", "sqlite");
+        // opens its own pool (CLAUDE.md → Database). The engine (sqlite/postgres/…)
+        // is chosen once in core's config.yml; money just uses whatever it gets.
         DatabaseService db = CoreApi.database(getServer()).orElse(null);
         if (db == null) {
             log.error("Central DatabaseService not available from minecraft-plugin-core — "
                     + "disabling MoneyPlugin.");
             getServer().getPluginManager().disablePlugin(this);
             return;
-        }
-        if (!"sqlite".equalsIgnoreCase(storageType)) {
-            log.warn("storage.type '{}' is not recognised; using the central DB.", storageType);
         }
         this.storage = new SqlMoneyStorage(this, db.dataSource(), db.tablePrefix(MODULE), db.dialect(), log);
 
@@ -88,8 +85,8 @@ public final class MoneyPlugin extends JavaPlugin {
                 FLUSH_INTERVAL_TICKS * 50, FLUSH_INTERVAL_TICKS * 50,
                 java.util.concurrent.TimeUnit.MILLISECONDS);
 
-        log.info("Economy ready: currency '{}' (storage: {} via central DB).",
-                settings.namePlural(), storageType.toLowerCase());
+        log.info("Economy ready: currency '{}' ({} via central DB).",
+                settings.namePlural(), db.dialect().name().toLowerCase());
     }
 
     @Override

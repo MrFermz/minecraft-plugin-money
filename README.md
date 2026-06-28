@@ -43,11 +43,11 @@ currency:
   symbol: "$"          # prefix เวลา format เช่น $1,250.00
   decimals: 2          # ปัดทศนิยมกี่ตำแหน่ง
   starting-balance: 100.0
-storage:
-  type: sqlite         # เก็บใน central DB ของ core (ตาราง money_*) — money ไม่เปิด pool เอง
 transaction-log:
   enabled: true        # บันทึกทุกธุรกรรมลงตาราง money_transactions (false = ปิด)
 ```
+
+> ไม่มีการตั้งค่า DB ที่นี่ — engine เลือกที่ core ที่เดียว (`plugins/antitle/config.yml` → `database.type`) money เก็บใน central DB ของ core เสมอ (ตาราง `money_*`)
 
 ## API ให้ plugin อื่นเรียก
 
@@ -70,7 +70,7 @@ if (eco.has(uuid, price)) {
 - **ผู้เล่นใหม่ = insert ลง DB ทันทีตอน join** (`AccountListener` → `seedIfAbsent` → `storage.create()` แบบ async) ไม่รอ flush
 - การเปลี่ยนยอดเงินเขียนแบบ buffered: `put()` mark dirty ในเมมโมรี, `flush()` upsert เป็น batch transaction (ทุก 1 นาทีบน async thread + ตอน disable) — JDBC ไม่อยู่บน main thread
 
-> เลือก/ตั้งค่า engine ที่ global config ของ core (`plugins/antitle/config.yml` → `database.*`) ไม่ใช่ที่ money; `storage.type: sqlite` ใน money แค่บอกว่า persist ผ่าน central DB
+> เลือก/ตั้งค่า engine ที่ global config ของ core (`plugins/antitle/config.yml` → `database.*`) ไม่ใช่ที่ money — money ไม่มี setting เรื่อง DB engine เลย
 
 ## Transaction log (audit trail)
 

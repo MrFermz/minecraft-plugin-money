@@ -11,11 +11,9 @@ currency:
   # Balance a brand-new account starts with.
   starting-balance: 100.0
 
-storage:
-  # Where balances are persisted.
-  # 'sqlite' = the shared central database owned by minecraft-plugin-core
-  #            (tables money_*). Money does not open its own pool.
-  type: sqlite
+# Balances persist in the shared central database owned by minecraft-plugin-core
+# (tables money_*). Money never opens its own pool, and the DB engine is chosen
+# once in core's config.yml (database.type) — there is no engine setting here.
 
 transaction-log:
   # Records every balance change (pay, give, take, set, reset) to the central
