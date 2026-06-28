@@ -14,12 +14,16 @@ Economy/currency plugin สำหรับ ecosystem นี้ — เป็น 
 | `/money help` | — | แสดงรายการคำสั่ง |
 | `/money balance [player]` | `money.balance` / `money.balance.others` | ดูยอดตัวเอง หรือของคนอื่น |
 | `/money pay <player> <amount>` | `money.pay` | โอนเงินให้ผู้เล่นที่ online |
-| `/money top` | `money.baltop` | จัดอันดับคนรวยสุด (top 10) |
+| `/money top` | `money.baltop` | จัดอันดับคนรวยสุด (top 10) — ข้ามผู้เล่นที่ปิด "show on top" |
 | `/money give\|take\|set <player> <amount>` | `money.admin` (+ child `money.admin.give/take/set`) | คำสั่งแอดมิน |
 | `/money reset <player>` | `money.admin.reset` | รีเซ็ตเป็นยอดเริ่มต้น |
 | `/money log [player] [limit]` | `money.admin.log` | ดู transaction log ล่าสุด (default 10, สูงสุด 50) |
 
 `/money` รองรับ tab-complete ของ subcommand / ชื่อผู้เล่น / จำนวน (subcommand แอดมินโชว์เฉพาะคนที่มี perm)
+
+### Per-player setting: ขึ้น `/money top` ไหม
+
+money register `SettingDefinition` (key `money.top.visible`, default เปิด) เข้า `SettingsRegistry` ของ core ตอน `onEnable` — ผู้เล่นปิดได้ผ่าน `/setting` ถ้าปิด `/money top` จะกรองชื่อออกก่อนจัดอันดับ (อ่านค่าผ่าน `PlayerPreferenceService` แบบ realtime, ได้ทั้งคน online/offline เพราะ core cache ไว้) — เป็น optional: ถ้า core ไม่ register service ไว้ money ถือว่าทุกคนโชว์
 
 ### Permissions (default)
 

@@ -5,6 +5,8 @@ import com.mrfermz.mcplugins.core.EcosystemData;
 import com.mrfermz.mcplugins.core.api.EconomyService;
 import com.mrfermz.mcplugins.core.db.DatabaseService;
 import com.mrfermz.mcplugins.core.log.PluginLog;
+import com.mrfermz.mcplugins.core.settings.PlayerPreferenceService;
+import com.mrfermz.mcplugins.core.settings.SettingDefinition;
 import com.mrfermz.mcplugins.money.command.MoneyCommand;
 import com.mrfermz.mcplugins.money.economy.CurrencySettings;
 import com.mrfermz.mcplugins.money.economy.MoneyEconomyService;
@@ -74,7 +76,16 @@ public final class MoneyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new AccountListener(this, economy, storage), this);
 
-        registerCommands(settings.startingBalance());
+        // Expose a per-player setting on the shared registry so the Settings menu
+        // can offer it; reads happen live in /money top (CLAUDE.md → plugins talk
+        // through core). Both are optional — money still works without them.
+        CoreApi.settings(getServer()).ifPresent(registry -> registry.register(
+                SettingDefinition.toggle(MoneyCommand.TOP_VISIBLE_KEY, "Money",
+                        "Show me on /money top",
+                        "Whether you appear on the public balance leaderboard", true)));
+        PlayerPreferenceService prefs = CoreApi.preferences(getServer()).orElse(null);
+
+        registerCommands(settings.startingBalance(), prefs);
 
         // Buffered writes are flushed off the main thread on a timer.
         getServer().getAsyncScheduler().runAtFixedRate(this,
@@ -114,8 +125,8 @@ public final class MoneyPlugin extends JavaPlugin {
                 BigDecimal.valueOf(config.getDouble("currency.starting-balance", 100.0)));
     }
 
-    private void registerCommands(BigDecimal startingBalance) {
-        MoneyCommand handler = new MoneyCommand(this, economy, txLog, startingBalance);
+    private void registerCommands(BigDecimal startingBalance, PlayerPreferenceService prefs) {
+        MoneyCommand handler = new MoneyCommand(this, economy, txLog, startingBalance, prefs);
         var money = getCommand("money");
         money.setExecutor(handler);
         money.setTabCompleter(handler);

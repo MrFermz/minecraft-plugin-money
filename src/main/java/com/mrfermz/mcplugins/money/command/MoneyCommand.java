@@ -1,6 +1,7 @@
 package com.mrfermz.mcplugins.money.command;
 
 import com.mrfermz.mcplugins.core.api.EconomyResponse;
+import com.mrfermz.mcplugins.core.settings.PlayerPreferenceService;
 import com.mrfermz.mcplugins.money.economy.MoneyEconomyService;
 import com.mrfermz.mcplugins.money.transaction.Transaction;
 import com.mrfermz.mcplugins.money.transaction.TransactionLog;
@@ -38,6 +39,9 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class MoneyCommand implements TabExecutor {
 
+    /** Per-player setting key (registered on core): show me on {@code /money top}. */
+    public static final String TOP_VISIBLE_KEY = "money.top.visible";
+
     private static final int TOP_LIMIT = 10;
     private static final int LOG_LIMIT = 10;
     private static final int LOG_MAX = 50;
@@ -49,13 +53,16 @@ public final class MoneyCommand implements TabExecutor {
     private final MoneyEconomyService economy;
     private final TransactionLog txLog;
     private final BigDecimal startingBalance;
+    /** Per-player preferences from core; {@code null} if the service isn't available. */
+    private final PlayerPreferenceService prefs;
 
     public MoneyCommand(Plugin plugin, MoneyEconomyService economy, TransactionLog txLog,
-                        BigDecimal startingBalance) {
+                        BigDecimal startingBalance, PlayerPreferenceService prefs) {
         this.plugin = plugin;
         this.economy = economy;
         this.txLog = txLog;
         this.startingBalance = startingBalance;
+        this.prefs = prefs;
     }
 
     @Override
@@ -164,7 +171,10 @@ public final class MoneyCommand implements TabExecutor {
         if (!sender.hasPermission("money.baltop")) {
             return denied(sender, "view the balance top");
         }
+        // Players who turned off "show me on /money top" (in /setting) are filtered
+        // out before ranking, so opting out actually removes them from the board.
         List<Map.Entry<UUID, BigDecimal>> top = economy.snapshot().entrySet().stream()
+                .filter(e -> prefs == null || prefs.getBoolean(e.getKey(), TOP_VISIBLE_KEY, true))
                 .sorted(Map.Entry.<UUID, BigDecimal>comparingByValue().reversed())
                 .limit(TOP_LIMIT)
                 .toList();
