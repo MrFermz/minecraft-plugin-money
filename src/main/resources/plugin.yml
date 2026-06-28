@@ -1,0 +1,47 @@
+name: MoneyPlugin
+version: '${version}'
+main: com.mrfermz.mcplugins.money.MoneyPlugin
+api-version: '1.21'
+author: Mr.Fermz
+description: Economy/currency for the ecosystem — balances, pay and admin controls.
+depend: [MinecraftPluginCore]
+
+commands:
+  money:
+    description: Economy command. /money shows your balance; see /money help.
+    usage: /money [help|balance|pay|top|give|take|set|reset] ...
+    aliases: [eco, economy, bal, balance]
+
+permissions:
+  money.balance:
+    description: Check your own balance.
+    default: true
+  money.balance.others:
+    description: Check other players' balances.
+    default: op
+  money.pay:
+    description: Pay other players.
+    default: true
+  money.baltop:
+    description: View the balance leaderboard.
+    default: true
+  money.admin:
+    description: All admin economy actions.
+    default: op
+    children:
+      money.admin.give: true
+      money.admin.take: true
+      money.admin.set: true
+      money.admin.reset: true
+  money.admin.give:
+    description: Give money to a player.
+    default: op
+  money.admin.take:
+    description: Take money from a player.
+    default: op
+  money.admin.set:
+    description: Set a player's balance.
+    default: op
+  money.admin.reset:
+    description: Reset a player's balance to the starting amount.
+    default: op

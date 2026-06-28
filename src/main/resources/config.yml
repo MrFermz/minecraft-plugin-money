@@ -1,0 +1,18 @@
+# minecraft-plugin-money configuration
+
+currency:
+  # Display names for the currency.
+  name-singular: "Coin"
+  name-plural: "Coins"
+  # Prefix shown when formatting amounts, e.g. "$1,250.00".
+  symbol: "$"
+  # Fractional digits balances are rounded to (0 = whole numbers only).
+  decimals: 2
+  # Balance a brand-new account starts with.
+  starting-balance: 100.0
+
+storage:
+  # Where balances are persisted.
+  # 'sqlite' = the shared central database owned by minecraft-plugin-core
+  #            (tables money_*). Money does not open its own pool.
+  type: sqlite
