@@ -1,7 +1,7 @@
 package com.mrfermz.mcplugins.money.command;
 
 import com.mrfermz.mcplugins.core.api.EconomyResponse;
-import com.mrfermz.mcplugins.core.settings.PlayerPreferenceService;
+import com.mrfermz.mcplugins.core.menu.PlayerPreferenceService;
 import com.mrfermz.mcplugins.money.economy.MoneyEconomyService;
 import com.mrfermz.mcplugins.money.transaction.Transaction;
 import com.mrfermz.mcplugins.money.transaction.TransactionLog;

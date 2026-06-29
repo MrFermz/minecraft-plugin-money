@@ -5,8 +5,8 @@ import com.mrfermz.mcplugins.core.EcosystemData;
 import com.mrfermz.mcplugins.core.api.EconomyService;
 import com.mrfermz.mcplugins.core.db.DatabaseService;
 import com.mrfermz.mcplugins.core.log.PluginLog;
-import com.mrfermz.mcplugins.core.settings.PlayerPreferenceService;
-import com.mrfermz.mcplugins.core.settings.SettingDefinition;
+import com.mrfermz.mcplugins.core.menu.MenuItem;
+import com.mrfermz.mcplugins.core.menu.PlayerPreferenceService;
 import com.mrfermz.mcplugins.money.command.MoneyCommand;
 import com.mrfermz.mcplugins.money.economy.CurrencySettings;
 import com.mrfermz.mcplugins.money.economy.MoneyEconomyService;
@@ -76,11 +76,11 @@ public final class MoneyPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new AccountListener(this, economy, storage), this);
 
-        // Expose a per-player setting on the shared registry so the in-game menu
-        // can offer it; reads happen live in /money top (CLAUDE.md → plugins talk
-        // through core). Both are optional — money still works without them.
-        CoreApi.settings(getServer()).ifPresent(registry -> registry.register(
-                SettingDefinition.toggle(MoneyCommand.TOP_VISIBLE_KEY, "Money",
+        // Expose a per-player option on the shared menu registry so the in-game
+        // menu can offer it; reads happen live in /money top (CLAUDE.md → plugins
+        // talk through core). Both are optional — money still works without them.
+        CoreApi.menu(getServer()).ifPresent(registry -> registry.register(
+                MenuItem.toggle(MoneyCommand.TOP_VISIBLE_KEY, "Money",
                         "Show me on /money top",
                         "Whether you appear on the public balance leaderboard", true)));
         PlayerPreferenceService prefs = CoreApi.preferences(getServer()).orElse(null);
